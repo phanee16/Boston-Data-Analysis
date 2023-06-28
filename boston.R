@@ -1,0 +1,209 @@
+---
+title: "Boston Data Analysis"
+author: "Phaneesha Chilaveni"
+date: "11/7/2021"
+output: html_document
+---
+
+
+
+#Load the all the required libraries for the assignment
+ 
+library(ISLR2)
+library(ISLR)
+library(bootstrap)
+library(boot)
+library(leaps)
+library(klaR)
+library(class)
+library(GGally)
+library(corrplot)
+library(caret)
+library("rpart")
+ 
+
+
+
+
+##** For the Boston data in the ISLR2 package: > library(ISLR2) > data(Boston) > ?Boston Using best subset regression analysis fit models for “medv” (median value of owner-occupied homes in $1000s). Perform model selection using the AIC, BIC, five-and tenfold cross-validation, and bootstrap .632 estimates of prediction error. Comment on your results and the differences in the selected model.**###
+
+#_Loading the Boston data from the ISLR2 package and copying it into a new variable boston for further manipulations on the data._
+ 
+data(Boston)
+boston = Boston
+dim(boston)
+ 
+
+
+#_Splitting the data into training and testing by holding out 20% of the random boston data into testing and the remaining as training.Performing the Best subset regression analysis on the data._
+
+ 
+
+set.seed(500)
+train = sample(1:nrow(boston),0.8*nrow(boston))
+Y.train = boston$medv[train]
+Y.test = boston$medv[-train]
+
+training = boston[train,]
+testing = boston[-train,]
+ 
+
+#_Performing the model selection using AIC and BIC and finding out the best variable model._
+ 
+fit = regsubsets(training$medv~., data = training ,method = "exhaustive",nvmax = 13)
+my_summary = summary(fit)
+my_summary
+names(my_summary)
+my_summary$cp
+my_summary$bic
+
+which.min(my_summary$cp)
+
+which.min(my_summary$bic)
+
+ 
+##**Comment**: AIC predicted that 11 variable model is best where as BIC resulted that 10 varaiable model is best model
+
+
+ 
+#Just checking the function
+train_errors = rep(NA,13)
+test_errors = rep(NA,13)
+train_pred_matrix = model.matrix(training$medv~.,data = training)
+
+test_pred_matrix = model.matrix(testing$medv~.,data = testing)
+for (i in 1:13) {
+    coefi = coef(fit, id = i)
+    pred_train <- train_pred_matrix[,names(coefi)] %*% coefi
+    train_errors[i] = mean((Y.train - pred_train)^2)
+    pred_test <- test_pred_matrix[,names(coefi)] %*% coefi
+    test_errors[i] = mean((Y.test - pred_test)^2)
+}
+train_errors
+min(train_errors)
+which.min(train_errors)
+test_errors
+min(test_errors)
+which.min(test_errors)
+plot(train_errors, col = "blue", type = "b", xlab = "No. of variables", ylab = "Train MSE", pch = 16)
+lines(test_errors,col = "red",type = "b")
+ 
+#_Performing model selection using 5-fold cross validation_
+ 
+set.seed(120)
+#Creating folds
+fold <- createFolds(boston, k=5)
+
+
+for (i in 1:length(fold)){
+train_fold = boston[-fold[[i]],]
+test_fold = boston[fold[[i]],]
+Y.train = boston$medv[-fold[[i]]]
+Y.test = boston$medv[fold[[i]]]
+fit = regsubsets(train_fold$medv~., data = train_fold ,method = "exhaustive",nvmax = 13)
+train_errors = rep(NA,13)
+test_errors = rep(NA,13)
+train_pred_matrix = model.matrix(train_fold$medv~.,data = train_fold)
+
+test_pred_matrix = model.matrix(test_fold$medv~.,data = test_fold)
+for (j in 1:13) {
+    coefi = coef(fit, id = j)
+    pred_train <- train_pred_matrix[,names(coefi)] %*% coefi
+    train_errors[j] = mean((Y.train - pred_train)^2)
+    pred_test <- test_pred_matrix[,names(coefi)] %*% coefi
+    test_errors[j] = mean((Y.test - pred_test)^2)
+}
+#print(train_errors)
+#print(min(train_errors))
+#print(which.min(train_errors))
+print(test_errors)
+print(min(test_errors))
+print(which.min(test_errors))
+plot(train_errors, col = "blue", type = "b", xlab = "No. of variables", ylab = "Train MSE", pch = 16)
+lines(test_errors,col = "red",type = "b")
+}
+
+ 
+##**Comment**:5-fold cross validation resulted that 2 variable model is best(as it came 4 times out of 5)
+
+
+
+#_Performing model selection using 10-fold cross validation_
+ 
+set.seed(1)
+#Creating folds
+fold <- createFolds(boston, k=10)
+
+
+for (i in 1:length(fold)){
+train_fold = boston[-fold[[i]],]
+test_fold = boston[fold[[i]],]
+Y.train = boston$medv[-fold[[i]]]
+Y.test = boston$medv[fold[[i]]]
+
+fit = regsubsets(train_fold$medv~., data = train_fold ,method = "exhaustive",nvmax = 13)
+train_errors = rep(NA,13)
+test_errors = rep(NA,13)
+train_pred_matrix = model.matrix(train_fold$medv~.,data = train_fold)
+
+test_pred_matrix = model.matrix(test_fold$medv~.,data = test_fold)
+for (j in 1:13) {
+    coefi = coef(fit, id = j)
+    pred_train <- train_pred_matrix[,names(coefi)] %*% coefi
+    train_errors[j] = mean((Y.train - pred_train)^2)
+    pred_test <- test_pred_matrix[,names(coefi)] %*% coefi
+    test_errors[j] = mean((Y.test - pred_test)^2)
+}
+#print(train_errors)
+#print(min(train_errors))
+#print(which.min(train_errors))
+print(test_errors)
+print(min(test_errors))
+print(which.min(test_errors))
+plot(train_errors, col = "blue", type = "b", xlab = "No. of variables", ylab = "Train MSE", pch = 16)
+lines(test_errors,col = "red",type = "b")
+}
+
+ 
+
+##**Comment**:10-fold cross validation resulted that 2 variable model is best 
+
+
+#_Calculate bootstrap prediction error for the best models of size "k" by creating functions that fed into bootpred_
+ 
+
+#create functions that feed into a "bootpred"
+beta.fit = function(X,Y){
+  lsfit(X,Y)
+}
+beta.predict = function(fit,X){
+  cbind(1,X)%*%fit$coef
+  
+}
+
+sq.error = function(Y,Yhat){
+  (Y-Yhat)^2
+}
+
+#create X and Y
+
+X = boston[,1:13]
+Y = boston[,14]
+ 
+
+
+#_Search over the best possible subsets of size "k" for which the error is minimum_
+ 
+set.seed(123)
+select = summary(fit)$outmat
+error.store = c()
+for (i in 1:13){
+  temp = which(select[i,] == "*")
+  res = bootpred(X[,temp],Y,nboot = 50,theta.fit = beta.fit,theta.predict = beta.predict,err.meas = sq.error)
+  error.store = c(error.store,res[[3]])
+}
+error.store
+plot(error.store)
+which.min(error.store)
+ 
+##**Comment**:Bootstrap .632 resulted that 11 variable model is best.So among all the results 11 variable model is found to be best for the data.
